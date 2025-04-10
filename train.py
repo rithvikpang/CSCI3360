@@ -8,8 +8,15 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline
 from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
 from sklearn.compose import ColumnTransformer
+from sklearn.impute import SimpleImputer
 
-df = pd.read_csv('filtered_data/combined_cleaned_data.csv')
+df = pd.read_csv('filtered_data/combined_cleaned_data.csv', low_memory=False)
+#df.dropna(inplace=True)
+
+# Fill necessary NaNs before calculating demand_score
+df['Quantity'] = df['Quantity'].fillna(0)
+df['Sell Price'] = df['Sell Price'].fillna(df['Sell Price'].mean())
+df['Rating'] = df['Rating'].fillna(df['Rating'].mean())
 
 # NOTE: We can change the numbers as needed, meant to normalize the data. 
 df['demand_score'] = (
@@ -17,8 +24,6 @@ df['demand_score'] = (
     df['Sell Price'] / df['Sell Price'].mean() * 1.5 + 
     df['Rating'] * 2
 )
-
-
 
 df['demand_level'] = pd.qcut(
     df['demand_score'], q=[0, .34, .67, 1], labels=['low', 'medium', 'high']
@@ -40,10 +45,20 @@ dropped_cols = ['Purchase ID', 'Item Title', 'Description', 'Date', 'Review', 'd
 X = df.drop(dropped_cols, axis=1)
 y = df['demand_level']
 
+num_transformer = Pipeline(steps=[
+    ('imputer', SimpleImputer(strategy='mean')),
+    ('scaler', StandardScaler())
+])
+
+cat_transformer = Pipeline(steps=[
+    ('imputer', SimpleImputer(strategy='most_frequent')),
+    ('onehot', OneHotEncoder(handle_unknown='ignore'))
+])
+
 preprocessor = ColumnTransformer(
     transformers=[
-        ('num', StandardScaler(), num_cols),
-        ('cat', OneHotEncoder(handle_unknown='ignore'), cat_cols)
+        ('num', num_transformer, num_cols),
+        ('cat', cat_transformer, cat_cols)
     ])
 
 
